@@ -93,4 +93,22 @@ void OnInitializeHook()
 		Patch<uint8_t>(addr, 0xEB); // jne -> jmp
 	}
 	TXN_CATCH();
+
+	// Restore original world textures
+	try
+	{
+		auto addr = get_pattern("C6 46 70 00 8B 83", 4 + 6);
+		auto jmp_dest = get_pattern("83 3D ? ? ? ? 00 74 17 8B 0D");
+		InjectHook(addr, jmp_dest, PATCH_JUMP);
+	}
+	TXN_CATCH();
+
+	// Restore original UI thumbnails
+	try
+	{
+		auto addr = get_pattern("A1 ? ? ? ? 83 F8 03 75 6A", 5);
+		auto jmp_dest = get_pattern("39 1D ? ? ? ? 74 16");
+		InjectHook(addr, jmp_dest, PATCH_JUMP);
+	}
+	TXN_CATCH();
 }
