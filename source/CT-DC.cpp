@@ -85,4 +85,12 @@ void OnInitializeHook()
 		}
 		TXN_CATCH();
 	}
+
+	// Restore FILA as destination
+	try
+	{
+		auto addr = get_pattern("3B 10 75 2C", 2);
+		Patch<uint8_t>(addr, 0xEB); // jne -> jmp
+	}
+	TXN_CATCH();
 }
