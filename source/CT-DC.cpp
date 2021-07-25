@@ -1,6 +1,15 @@
 #include "Utils/MemoryMgr.h"
 #include "Utils/Patterns.h"
 
+namespace OriginalNames
+{
+	const char* PIZZA_HUT = "Pizza Hut";
+	const char* LEVIS_STORE = "The Original Levi's\x7E store";
+	const char* FILA = "FILA";
+	const char* KFC = "Kentucky Fried Chicken";
+	const char* TOWER_RECORDS = "Tower Records";
+}
+
 void OnInitializeHook()
 {
 	auto Protect = ScopedUnprotect::UnprotectSectionOrFullModule( GetModuleHandle( nullptr ), ".text" );
@@ -109,6 +118,23 @@ void OnInitializeHook()
 		auto addr = get_pattern("A1 ? ? ? ? 83 F8 03 75 6A", 5);
 		auto jmp_dest = get_pattern("39 1D ? ? ? ? 74 16");
 		InjectHook(addr, jmp_dest, PATCH_JUMP);
+	}
+	TXN_CATCH();
+
+	// Restore original destination names
+	try
+	{
+		using namespace OriginalNames;
+
+		auto destinationsArr = *get_pattern<const char***>("8B 04 95 ? ? ? ? D9 1C 24", 3);
+		auto destinationsArcade = destinationsArr[0];
+		auto destinationsOriginal = destinationsArr[1];
+
+		destinationsArcade[8] = destinationsOriginal[1] = PIZZA_HUT;
+		destinationsArcade[11] = destinationsOriginal[2] = FILA;
+		destinationsArcade[12] = destinationsOriginal[3] = LEVIS_STORE;
+		destinationsArcade[13] = destinationsOriginal[4] = TOWER_RECORDS;
+		destinationsArcade[14] = destinationsOriginal[5] = KFC;
 	}
 	TXN_CATCH();
 }
