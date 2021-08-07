@@ -1,5 +1,5 @@
 defines { 
-    "rsc_FullName=\"Crazy Taxi Dreamcast Restoration\"",
+    "rsc_FullName=\"Crazy Taxi Dreamcast Restoration 2.0\"",
     "rsc_MinorVersion=0",
     "rsc_RevisionID=1",
     "rsc_BuildID=0",

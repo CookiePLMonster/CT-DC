@@ -1,10 +1,10 @@
-# Crazy Taxi Dreamcast Restoration
+# Crazy Taxi Dreamcast Restoration 2.0
 
 This plugin for Crazy Taxi restores the original licensed brands from the Arcade and Dreamcast versions.
 The original version of the mod was made by [Alexvgz](https://www.youtube.com/channel/UCqDbjGuaY4awoKs8J-6DBUA)
 and involved replacing textures; after some investigation I found a way to restore brands by editing the code instead.
 This has also allowed for complete restorations of FILA and Pizza Hut logos, and for a restoration of FILA
-as a possible customer destination -- unlike other licensed brands, FILA was not only made unmarked,
+as a possible customer destination - unlike other licensed brands, FILA was not only made unmarked,
 but also made unreachable by customers.
 
 ## Features
