@@ -10,6 +10,72 @@ namespace OriginalNames
 	const char* TOWER_RECORDS = "Tower Records";
 }
 
+namespace OriginalMapVoices
+{
+	static void* JumpBackAddr;
+	static uint32_t *Case1Ptr, *Case2Ptr, *Case3Ptr, *Case4Ptr, *Case5Ptr;
+
+	void __declspec(naked) JumpTable_Case1()
+	{
+		_asm
+		{
+			mov		eax, [esi+148h]
+			and		eax, 7
+			mov		edx, [Case1Ptr]
+			mov		edx, [edx+eax*4]
+			jmp		JumpBackAddr
+		}
+	}
+
+	void __declspec(naked) JumpTable_Case2()
+	{
+		_asm
+		{
+			mov		eax, [esi+148h]
+			and		eax, 7
+			mov		edx, [Case2Ptr]
+			mov		edx, [edx+eax*4]
+			jmp		JumpBackAddr
+		}
+	}
+
+	void __declspec(naked) JumpTable_Case3()
+	{
+		_asm
+		{
+			mov		eax, [esi+148h]
+			and		eax, 7
+			mov		edx, [Case3Ptr]
+			mov		edx, [edx+eax*4]
+			jmp		JumpBackAddr
+		}
+	}
+
+	void __declspec(naked) JumpTable_Case4()
+	{
+		_asm
+		{
+			mov		eax, [esi+148h]
+			and		eax, 7
+			mov		edx, [Case4Ptr]
+			mov		edx, [edx+eax*4]
+			jmp		JumpBackAddr
+		}
+	}
+
+	void __declspec(naked) JumpTable_Case5()
+	{
+		_asm
+		{
+			mov		eax, [esi+148h]
+			and		eax, 7
+			mov		edx, [Case5Ptr]
+			mov		edx, [edx+eax*4]
+			jmp		JumpBackAddr
+		}
+	}
+}
+
 void OnInitializeHook()
 {
 	auto Protect = ScopedUnprotect::UnprotectSectionOrFullModule( GetModuleHandle( nullptr ), ".text" );
@@ -137,4 +203,71 @@ void OnInitializeHook()
 		destinationsArcade[14] = destinationsOriginal[5] = KFC;
 	}
 	TXN_CATCH();
+
+	// Restore voices referring to licensed destinations
+	{
+		auto jmp = [](uintptr_t& addr, uintptr_t dest)
+		{
+			const ptrdiff_t offset = dest - (addr+2);
+			if (offset >= INT8_MIN && offset <= INT8_MAX)
+			{
+				Patch(addr, { 0xEB, static_cast<uint8_t>(offset) });
+				addr += 2;
+			}
+			else
+			{
+				InjectHook(addr, dest, PATCH_JUMP);
+				addr += 5;
+			}
+		};
+
+		try
+		{
+			auto jmp_src = reinterpret_cast<uintptr_t>(get_pattern("75 37 8B 86", 2 + 6));
+			auto jmp_dest = reinterpret_cast<uintptr_t>(get_pattern("8B 96 ? ? ? ? 83 E2 07 8D 04 80"));
+
+			jmp(jmp_src, jmp_dest);
+		}
+		TXN_CATCH();
+
+		try
+		{
+			auto jmp_src = reinterpret_cast<uintptr_t>(get_pattern("85 FF 75 15 8B 86"));
+			auto jmp_dest = reinterpret_cast<uintptr_t>(get_pattern("B8 02 00 00 00 E8 ? ? ? ? 83 3D ? ? ? ? ? 75 2C 33 C0"));
+
+			jmp(jmp_src, jmp_dest);
+		}
+		TXN_CATCH();
+
+		try
+		{
+			using namespace OriginalMapVoices;
+
+			auto jump_table_pattern = pattern("83 C0 F3 83 F8 0E").get_one();
+			auto jump_back_addr = get_pattern("89 15 ? ? ? ? 89 0D ? ? ? ? 8B 0D ? ? ? ? B8");
+
+			auto voices_table = *get_pattern<uint32_t*>("8B 14 95 ? ? ? ? E9", 3);
+
+			JumpBackAddr = jump_back_addr;
+
+			Case1Ptr = voices_table+40;
+			Case2Ptr = voices_table+55;
+			Case3Ptr = voices_table+60;
+			Case4Ptr = voices_table+65;
+			Case5Ptr = voices_table+70;
+
+			// Replace with a new jump table
+			auto jump_table_ptr = jump_table_pattern.get<void**>(0x13 + 3);
+
+			static const uint8_t indirect_table[] { 0, 1, 2, 3, 4, 12, 12, 12, 12, 12, 12, 12, 5, 12, 6, 7, 8, 9, 12, 12, 12, 10, 11, 11, 11, 11, 11 };
+			static void* jump_table[5 + 8] { &JumpTable_Case1, &JumpTable_Case2, &JumpTable_Case3, &JumpTable_Case4, &JumpTable_Case5 };	
+			std::copy_n(*jump_table_ptr, 8, jump_table+5);
+
+			Patch<int8_t>(jump_table_pattern.get<void>(2), -1);
+			Patch<int8_t>(jump_table_pattern.get<void>(3 + 2), 26);
+			Patch(jump_table_pattern.get<void>(0xC + 3), &indirect_table);
+			Patch(jump_table_ptr, &jump_table);
+		}
+		TXN_CATCH();
+	}
 }
