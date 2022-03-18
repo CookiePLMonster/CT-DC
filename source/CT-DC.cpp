@@ -1,6 +1,8 @@
 #include "Utils/MemoryMgr.h"
 #include "Utils/Patterns.h"
 
+#include <map>
+
 namespace OriginalNames
 {
 	const char* PIZZA_HUT = "Pizza Hut";
@@ -76,6 +78,102 @@ namespace OriginalMapVoices
 	}
 }
 
+namespace LogosZBias
+{
+	static const std::map<uint32_t, int32_t> objsWithBiasOffset = {
+		// Pizza Hut Original
+		{ 0x444b4ac6, 3 },
+		{ 0x4483139b, 3 },
+		{ 0x44552252, 6 },
+
+		// Pizza Hut Arcade
+		{ 0x467e7228, 3 },
+		{ 0x467be846, 3 },
+		{ 0x46800be8, 3 },
+		{ 0x467f559d, 6 },
+		{ 0x46806d02, 6 },
+
+		// FILA Original
+		{ 0x459a6b56, 3 },
+		{ 0x459cf9dc, 3 },
+		{ 0x45a250bd, 3 },
+		{ 0x45a71eee, 3 },
+
+		// FILA Arcade
+		{ 0x465c95d3, 3 },
+		{ 0x465e8baa, 3 },
+		{ 0x4660db22, 3 },
+		{ 0x46635697, 3 },
+	};
+
+	static void* JumpBackAddr;
+	static int32_t GetZBiasForObj(uint32_t hash)
+	{
+		// Pizza Hut Original:
+		// 0x444b4ac6 - text shadow
+		// 0x4483139b - text on the fence
+		// 0x44552252 - roof foreground text
+
+		// Pizza Hut Arcade:
+		// 0x467f559d - roof foreground text #1
+		// 0x467e7228 - text above the door
+		// 0x467be846 - text on the fence
+		// 0x46800be8 - text shadow (both)
+		// 0x46806d02 - roof foreground text #2
+
+		// FILA Original:
+		// 0x4599c76e - unknown
+		// 0x459a1350 - building logo left, signage
+		// 0x459a6b56 - building logos, left side
+		// 0x459cf9dc - building logos, center
+		// 0x45a250bd - building logos, right side
+		// 0x45a3223c - building logo right, signage
+		// 0x45a5b9c2 - big billboard, left side
+		// 0x45a6a1ca - big billboard, right side (background)
+		// 0x45a71eee - big billboard, left side (foreground)
+
+		// FILA Arcade:
+		// 0x465bb702 - building logo left, signage
+		// 0x465c8778 - unknown
+		// 0x465c95d3 - building logos, left side
+		// 0x465e8baa - building logos, center
+		// 0x4660db22 - building logos, right side
+		// 0x466153c4 - building logo right, signage
+		// 0x4662a3d2 - big billboard, left side
+		// 0x4663248f - big billboard, right side (background)
+		// 0x46635697 - big billboard, left side (foreground)
+		auto it = objsWithBiasOffset.find(hash);
+		return it != objsWithBiasOffset.end() ? it->second : 0;
+	}
+
+	void __declspec(naked) DrawHashCheck()
+	{
+		_asm
+		{
+			push	dword ptr [ebp-48h]
+			call	GetZBiasForObj
+			add		esp, 4
+			add		esi, eax
+			jmp		[JumpBackAddr]
+		}
+	}
+
+	void __declspec(naked) DrawHashCheck_ArcadeFILA()
+	{
+		_asm
+		{
+			cmp     ebx, 0CC058A0h
+			je		DrawHashCheck_JumpToDraw
+			retn
+
+			DrawHashCheck_JumpToDraw:
+			// "Undo" the call
+			pop		eax
+			jmp		DrawHashCheck
+		}
+	}
+}
+
 void OnInitializeHook()
 {
 	auto Protect = ScopedUnprotect::UnprotectSectionOrFullModule( GetModuleHandle( nullptr ), ".text" );
@@ -108,58 +206,80 @@ void OnInitializeHook()
 		nopComparison("81 F9 A0 B3 C0 0C", 2);
 	}
 
-	
-	// Restore Pizza Hut
+	// Restore original models
+	try
 	{
-		nopComparison("81 FB 60 DF BF 0C", 2); // Original
+		using namespace LogosZBias;
 
-		try
+		auto model_draw_end = get_pattern("81 BD 5C FF FF FF 40 7F 62 0C");
+		JumpBackAddr = model_draw_end;
+
+		// Restore Pizza Hut
 		{
-			auto addr = get_pattern("0F 8F ? ? ? ? 74 6B", 6); // Arcade
-			Nop(addr, 2);
+			// Original
+			try
+			{
+				auto addr = get_pattern("81 7D B8 9B 13 83 44");
+				InjectHook(addr, DrawHashCheck, PATCH_JUMP);
+			}
+			TXN_CATCH();
+
+			// Arcade
+			try
+			{
+				auto addr = get_pattern("81 7D B8 46 E8 7B 46");
+				InjectHook(addr, DrawHashCheck, PATCH_JUMP);
+			}
+			TXN_CATCH();
 		}
-		TXN_CATCH();
+
+		// Restore FILA
+		{
+			// Original
+			try
+			{
+				auto addr = get_pattern("81 FB 60 84 BF 0C", 6 + 6 + 2);
+				WriteOffsetValue(addr, &DrawHashCheck);
+			}
+			TXN_CATCH();
+
+			// Arcade
+			try
+			{
+				auto arcade_fila = pattern("81 FB A0 58 C0 0C").get_one();
+				InjectHook(arcade_fila.get<void>(), &DrawHashCheck_ArcadeFILA, PATCH_CALL);
+				Nop(arcade_fila.get<void>(5), 3);
+			}
+			TXN_CATCH();
+		}
+
+		// Restore clothes inside FILA
+		{
+			// Original
+			try
+			{
+				auto original_addr = get_pattern("81 FB C0 91 BF 0C", 6 + 2);
+				auto original_jmp_target = get_pattern("81 FB 00 F0 BF 0C", -4 - 5);
+				WriteOffsetValue(original_addr, original_jmp_target);
+			}
+			TXN_CATCH();
+
+			// Arcade
+			try
+			{
+				auto arcade_addr = pattern("8B 3D ? ? ? ? 89 4D 94").get_one();
+
+				// mov byte ptr [ebp+var_59], 0
+				// mov edi, 0F0h
+				// jmp 40857Ch
+				Patch(arcade_addr.get<void>(-6), {0xC6, 0x45, 0xA7, 0x00});
+				Patch(arcade_addr.get<void>(-6 + 4), {0xBF, 0xF0, 0x00, 0x00, 0x00});
+				InjectHook(arcade_addr.get<void>(-6 + 4 + 5), model_draw_end, PATCH_JUMP);
+			}
+			TXN_CATCH();
+		}
 	}
-
-	// Restore FILA
-	{
-		// Original
-		try
-		{
-			auto addr = get_pattern("81 FB 60 84 BF 0C", 6 + 6);
-			Nop(addr, 6);
-		}
-		TXN_CATCH();
-
-		nopComparison("81 FB A0 58 C0 0C", 2); // Arcade
-	}
-
-	// Restore clothes inside FILA
-	{
-		// Original
-		try
-		{
-			auto original_addr = get_pattern("81 FB C0 91 BF 0C", 6 + 2);
-			auto original_jmp_target = get_pattern("81 FB 00 F0 BF 0C", -4 - 5);
-			WriteOffsetValue(original_addr, original_jmp_target);
-		}
-		TXN_CATCH();
-
-		// Arcade
-		try
-		{
-			auto arcade_addr = pattern("8B 3D ? ? ? ? 89 4D 94").get_one();
-			auto arcade_jmp_target = get_pattern("81 BD 5C FF FF FF 40 7F 62 0C");
-
-			// mov byte ptr [ebp+var_59], 0
-			// mov edi, 0F0h
-			// jmp 40857Ch
-			Patch(arcade_addr.get<void>(-6), {0xC6, 0x45, 0xA7, 0x00});
-			Patch(arcade_addr.get<void>(-6 + 4), {0xBF, 0xF0, 0x00, 0x00, 0x00});
-			InjectHook(arcade_addr.get<void>(-6 + 4 + 5), arcade_jmp_target, PATCH_JUMP);
-		}
-		TXN_CATCH();
-	}
+	TXN_CATCH();
 
 	// Restore FILA as destination
 	try
