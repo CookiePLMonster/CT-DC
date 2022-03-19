@@ -60,4 +60,4 @@ filter { "toolset:*_xp"}
 
 filter { "toolset:not *_xp"}
 	defines { "WINVER=0x0601", "_WIN32_WINNT=0x0601" } -- Target Win7
-	buildoptions { "/permissive-" }
+	conformancemode "on"

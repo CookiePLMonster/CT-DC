@@ -15,8 +15,9 @@ but also made unreachable by customers.
   * Tower Records (Record Store)
   * The Original Levi's store (Clothing Store)
 * Restored FILA (Shoe Rack) as a possible destination for customers, previously cut completely
+* Restored original voice lines for licensed destinations
 
-**This modification does not (and will not) restore the original voices and/or soundtrack from the Dreamcast version.**
+**This modification does not (and will not) restore the original soundtrack from the Dreamcast version.**
 
 ## Credits
 * [Alexvgz](https://www.youtube.com/channel/UCqDbjGuaY4awoKs8J-6DBUA) - the original Dreamcast Restoration mod
